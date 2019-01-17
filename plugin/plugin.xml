@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<!-- https://jazz.net/wiki/bin/view/Main/JAFServiceFramework -->
+<plugin>
+    <extension
+            point="com.ibm.team.repository.common.components">
+        <component
+                id="com.siemens.currentiterationswitcher"
+                name="Current Iteration Automatic Switcher (CIAS)">
+            <service
+                    name="Current Iteration Switcher service"
+                    kind="MODELLED_REST"
+                    uri="com.siemens.currentiterationswitcher.ICurrentIterationAutomaticSwitcher"
+                    version="${qualifiedVersion}">
+            </service>
+        </component>
+    </extension>
+
+    <!-- Async Task-->
+    <extension
+            point="com.ibm.team.repository.service.asynchronousTask">
+        <asynchronousTask
+                taskId="CurrentIterationAutomaticSwitcher">
+            <extensionService
+                    componentId="com.siemens.currentiterationswitcher"
+                    implementationClass="com.siemens.currentiterationswitcher.tasks.CurrentIterationSetterAsyncTask">
+                <prerequisites>
+                    <requiredService interface="com.ibm.team.workitem.service.IAuditableServer"/>
+                    <requiredService interface="com.ibm.team.repository.service.IRepositoryItemService"/>
+                    <requiredService interface="com.ibm.team.process.service.IProcessServerService"/>
+                    <requiredService interface="com.ibm.team.repository.service.IMailerService"/>
+                    <configurationProperties validatorClass="com.siemens.currentiterationswitcher.helpers.Validator">
+                        <!-- <configurationProperty
+                                 accessPolicy="OPEN"
+                                 default="200"
+                                 description="Time delay between the Work Item Due Date Notifier executions"
+                                 displayableName="Current iteration switcher Delay"
+                                 name="CurrentIterationAutomaticSwitcher.fixedDelay"
+                                 required="true"
+                                 type="LONG"
+                                 updatePolicy="NO_RESTART_REQUIRED">
+                         </configurationProperty>-->
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default="0230"
+                                description="Start time in military time format, change takes effect after the task runs"
+                                displayableName="Start Time(HHmm) "
+                                name="CurrentIterationAutomaticSwitcher.time"
+                                required="true"
+                                type="LONG"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default="program-timeline;roadmap;art"
+                                description="The standard entry point"
+                                displayableName="Iteration search entry point"
+                                name="CurrentIterationAutomaticSwitcher.entrypoint"
+                                required="true"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default=""
+                                description="List of Projectareas to be iterated by CIAS, only applies if mode is SELECT"
+                                displayableName="CIAS enabled Project Areas"
+                                name="CurrentIterationAutomaticSwitcher.palist"
+                                required="false"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default=";"
+                                description="The string that separates the values in entrypoint and Project Areas"
+                                displayableName="The Delimiter for entrypoint and the list of enabled Project Areas"
+                                name="CurrentIterationAutomaticSwitcher.delimiter"
+                                required="true"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default="NONE"
+                                description="Should be one of three values: ALL, NONE or SELECT to enable CIAS for all, none or a list of Project Areas"
+                                displayableName="Mode (ALL, NONE, SELECT)"
+                                name="CurrentIterationAutomaticSwitcher.mode"
+                                required="true"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default="JazzCM"
+                                description="The ID of the role to be emailed, not Name!"
+                                displayableName="Email Notification Role ID"
+                                name="CurrentIterationAutomaticSwitcher.roleID"
+                                required="true"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                        <configurationProperty
+                                accessPolicy="OPEN"
+                                default=""
+                                description="Delimiter separated email addresses to be notified if something goes wrong"
+                                displayableName="Email in case of (partial) failure"
+                                name="CurrentIterationAutomaticSwitcher.mail"
+                                required="false"
+                                type="STRING"
+                                updatePolicy="NO_RESTART_REQUIRED">
+                        </configurationProperty>
+                    </configurationProperties>
+                </prerequisites>
+            </extensionService>
+        </asynchronousTask>
+    </extension>
+
+    <!-- services-->
+    <extension
+            point="com.ibm.team.repository.service.serviceProvider">
+        <serviceProvider
+                componentId="com.siemens.currentiterationswitcher"
+                implementationClass="com.siemens.currentiterationswitcher.CurrentIterationAutomaticSwitcher">
+            <provides>
+                <providedService interface="com.siemens.currentiterationswitcher.ICurrentIterationAutomaticSwitcher"/>
+            </provides>
+            <prerequisites>
+                <requiredService interface="com.ibm.team.workitem.service.IAuditableServer"/>
+                <requiredService interface="com.ibm.team.repository.service.IRepositoryItemService"/>
+                <requiredService interface="com.ibm.team.process.service.IProcessServerService"/>
+                <requiredService interface="com.ibm.team.repository.service.IMailerService"/>
+                <requiredService interface="com.ibm.team.repository.service.IAsynchronousTaskSchedulerService"/>
+            </prerequisites>
+        </serviceProvider>
+    </extension>
+
+
+</plugin>
+
+
