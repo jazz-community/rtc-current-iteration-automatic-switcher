@@ -30,16 +30,6 @@
                     <requiredService interface="com.ibm.team.process.service.IProcessServerService"/>
                     <requiredService interface="com.ibm.team.repository.service.IMailerService"/>
                     <configurationProperties validatorClass="com.siemens.currentiterationswitcher.helpers.Validator">
-                        <!-- <configurationProperty
-                                 accessPolicy="OPEN"
-                                 default="200"
-                                 description="Time delay between the Work Item Due Date Notifier executions"
-                                 displayableName="Current iteration switcher Delay"
-                                 name="CurrentIterationAutomaticSwitcher.fixedDelay"
-                                 required="true"
-                                 type="LONG"
-                                 updatePolicy="NO_RESTART_REQUIRED">
-                         </configurationProperty>-->
                         <configurationProperty
                                 accessPolicy="OPEN"
                                 default="0230"
