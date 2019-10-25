@@ -21,6 +21,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.osgi.util.NLS;
 
 import javax.mail.MessagingException;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 
@@ -33,6 +34,8 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
     private IRepositoryItemService itemService;
     private IProcessServerService processServerService;
     private String serviceMessage = "";
+    private String failedPAs = "", noPermisssionPas = "";
+    IMailerService mailerService;
 
     public CurrentIterationSetterAsyncTask() {
         super();
@@ -49,14 +52,16 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
         //gets called at server start and every time task is executed(after successful execution)
         //time corresponds to server time(zone)
         long time = getLongConfigProperty(getTaskId() + ".time");
-        return delayFromMilitaryTime(time);
+        long ms = delayFromMilitaryTime(time);
+        log(false, "CIAS has been scheduled to run at " + time + " which is in " + ms + " seconds.");
+        return ms;
         //return 180; //run every 3 min for debugging
     }
 
 
     @Override
     public void runTask() throws TeamRepositoryException {
-
+        mailerService = getService(IMailerService.class);
         log(false, "Current Iteration Automatic Switcher started");
         //setup services etc
         IProgressMonitor monitor = new NullProgressMonitor();
@@ -87,13 +92,24 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
             return;
         }
         String pas = modeSelect ? palist.toString() : "";
+        String[] emails = getStringConfigProperty(propertyID + "mail").split(delimiter);
+        if(emails.length > 0 && !emails[0].isEmpty()){ //todo only temporary
+            String message = "CIAS started with the following parameters:\n" +
+                    "Mode: " + mode + " Entrypoint: " + path + " PAs: " + pas + " Delimiter: " + delimiter + "\n";
+            sendAdminEmails(emails, "CIAS started", message);
+        }
+
         log(false, "Mode: " + mode + " Entrypoint: " + path + " PAs: " + pas + " Delimiter: " + delimiter);
         List<IProjectAreaHandle> projectAreas = findProjectAreas(monitor);
 
         loopPAs(modeSelect, palist, splitPath, projectAreas);
-
+        //send troubleshoot emails if there is something to report and someone to report to.
+        if ((!failedPAs.isEmpty() || !noPermisssionPas.isEmpty()) && emails.length > 0 && !emails[0].isEmpty()) {
+            createTroubleEmail(emails); //send an email with what, why didn't work
+        }
         log(false, "Current Iteration Automatic Switcher terminated normally.");
     }
+
 
     //loop through PAs and do the stuff
     private void loopPAs(Boolean modeSelect, List<String> palist, String[] splitPath, List<IProjectAreaHandle> projectAreas) throws TeamRepositoryException {
@@ -105,6 +121,9 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
                 if (pa != null) {
                     log(true, "Found PA " + paName + ". Processing it now.");
                     checkDevLineAndIterationsBeforeIteratingThem(splitPath, pa);
+                } else {
+                    log(false, "Didn't find PA " + paName + ".");
+                    failedPAs = failedPAs + paName + "\n"; //add for error report
                 }
 
             }
@@ -132,6 +151,8 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
             if (isNotCurrent(iteration)) {
                 oldIter = iteration.getName();
                 iterateIterations(splitPath, devLine, pa, oldIter);
+            } else {
+                log(false, "Found current iteration " + iteration.getName() + ". Please unset if incorrect.");
             }
         }
     }
@@ -173,15 +194,19 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
             if (iteration.getStartDate() != null && iteration.getEndDate() != null
                     && iteration.getStartDate().getTime() < System.currentTimeMillis()
                     && iteration.getEndDate().getTime() > System.currentTimeMillis()) {
-                if(iteration.getChildren().length!=0){
+                if (iteration.getChildren().length != 0) {
                     findAndSetCurrent(devLine, pa, iteration.getChildren(), oldIter);
-                }
-                else {
+                } else {
                     devLine = (IDevelopmentLine) devLine.getWorkingCopy();
                     devLine.setCurrentIteration(iterationHandle);
-                    processServerService.saveProcessItem(devLine);
-                    log(false, "Current iteration for Project Area " + pa.getName() + " has been set to: " + iteration.getName());
-                    createEmail(pa, iteration, oldIter);
+                    try {
+                        processServerService.saveProcessItem(devLine);
+                        log(false, "Current iteration for Project Area " + pa.getName() + " has been set to: " + iteration.getName());
+                        createEmail(pa, iteration, oldIter);
+                    } catch (TeamRepositoryException e) {
+                        log(false, "Missing necessary permission to modify Iterations in " + pa.getName() + ":\n" + e.getMessage());
+                        noPermisssionPas = noPermisssionPas + pa.getName() + "\n";
+                    }
                 }
 
             }
@@ -193,10 +218,18 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
         IContributorHandle[] members = projectArea.getMembers();
         for (IContributorHandle handle : members) {
             String[] roleAssignmentIds = projectArea.getRoleAssignmentIds(handle);
-            if (Arrays.asList(roleAssignmentIds).contains("JazzCM")) {
+            String roleId = getStringConfigProperty("CurrentIterationAutomaticSwitcher.roleID");
+            if (Arrays.asList(roleAssignmentIds).contains(roleId)) {
                 try {
                     IContributor contributor = (IContributor) itemService.fetchItem(handle, null);
-                    sendEmail(contributor.getEmailAddress(), projectArea, iteration, oldIter);
+                    IRole[] contributorRoles = processServerService.getServerProcess(projectArea).getContributorRoles(contributor, projectArea);
+                    String roleName = roleId;
+                    for (IRole role : contributorRoles) {
+                        if (role.getId().equals(roleId)) {
+                            roleName = ((IRole2) role).getRoleName();
+                        }
+                    }
+                    sendEmail(contributor.getEmailAddress(), projectArea, iteration, oldIter, roleName);
                 } catch (TeamRepositoryException e) {
                     try {
                         getLog().warn("Could not send email notification to member with id: " + handle.getItemId());//get log errors if called from service
@@ -210,20 +243,53 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
 
     }
 
-    private void sendEmail(String mailAddress, IProjectArea projectArea, IIteration newIter, String oldIter) {
-        IMailerService mailerService = getService(IMailerService.class);
-        String subject = ("Current Iteration of " + projectArea.getName() + " has been updated");
-        String message1 = "Current Iteration of Project Area " + projectArea.getName() + " has been moved ";
-        String message2 = !oldIter.equals("") ? "from " + oldIter + " to " + newIter.getName() : " to " + newIter.getName();
-        String message = "For your Information: \n" + message1 + message2 + ".\n";
+    private void sendEmail(String mailAddress, IProjectArea projectArea, IIteration newIter, String oldIter, String roleName) {
+        String subject = ("Current Iteration of '" + projectArea.getName() + "' has been updated");
+        String message1 = "Current Iteration of Project Area '" + projectArea.getName() + "' has been moved ";
+        String message2 = !oldIter.equals("") ? "from '" + oldIter + "' to '" + newIter.getName() : " to '" + newIter.getName();
+        String message = "For your Information: \n" + message1 + message2 + "'.\n";
         message = message.concat("Project Area Web UI: " + this.getRequestRepositoryURL() + "web/projects/" + projectArea.getName().trim().replace(" ", "%20"));
+        message = message.concat("\n\nYou're receiving this mail because you have the '" + roleName + "' role in the '" + projectArea.getName() + "' Project Area.");
         MailSender sender = mailerService.getDefaultSender();
 
         try {
             mailerService.sendMail(sender, mailAddress, subject, message, null);
         } catch (MessagingException e) {
             String warningMessage = NLS.bind("Failed to send current iteration notification email to {0}", mailAddress);
-            getLog().warn(warningMessage, e);
+            try {
+                getLog().warn(warningMessage, e);
+            } catch (Exception ex) {
+                serviceMessage = serviceMessage.concat("Failed to send email. " + e.getMessage() + "\n");
+            }
+        }
+    }
+
+    //send an email with infos what went wrong
+    private void createTroubleEmail(String[] emails) throws TeamRepositoryException {
+        String subject = "[CIAS] Iteration switch partially failed";
+        String message = "";
+        if (!failedPAs.isEmpty()) {
+            message = "The following project areas could not be found:\n" + failedPAs;
+        }
+        if (!noPermisssionPas.isEmpty()) {
+            message = message + "The iteration of following project areas could not be updated:\n" + noPermisssionPas;
+        }
+        message = message + "Please make sure that the project area exists, make sure that there are no spelling errors and that they are accessible.\n";
+        sendAdminEmails(emails, subject, message);
+    }
+
+    private void sendAdminEmails(String[] emails, String subject, String message) throws TeamRepositoryException {
+        MailSender sender = mailerService.getDefaultSender();
+        IContributorHandle authenticatedContributor = processServerService.getAuthenticatedContributor();
+        IContributor contributor = (IContributor) itemService.fetchItem(authenticatedContributor, null);
+
+        message = message + "Timestamp:"+ new Timestamp(System.currentTimeMillis()).toString() + " Task executor: " + contributor.getName();
+        for (String email : emails) {
+            try {
+                mailerService.sendMail(sender, email, subject, message, null);
+            } catch (MessagingException e) {
+                log(false, "tried and failed to send troubleshoot email");
+            }
         }
     }
 
@@ -258,9 +324,9 @@ public class CurrentIterationSetterAsyncTask extends AbstractAutoScheduledTask {
     private void log(Boolean debug, String message) {
         try {
             if (debug) {
-                getLog().debug(message);
+                getLog().debug(message + "\n");
             } else {
-                getLog().info(message);
+                getLog().info(message  + "\n");
             }
         } catch (Exception e) {
             serviceMessage = serviceMessage.concat(message + "\n");
