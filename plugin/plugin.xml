@@ -29,7 +29,17 @@
                     <requiredService interface="com.ibm.team.repository.service.IRepositoryItemService"/>
                     <requiredService interface="com.ibm.team.process.service.IProcessServerService"/>
                     <requiredService interface="com.ibm.team.repository.service.IMailerService"/>
-                    <configurationProperties validatorClass="com.siemens.currentiterationswitcher.helpers.Validator">
+                    <configurationProperties>
+                        <!-- <configurationProperty
+                                 accessPolicy="OPEN"
+                                 default="200"
+                                 description="Time delay between the Work Item Due Date Notifier executions"
+                                 displayableName="Current iteration switcher Delay"
+                                 name="CurrentIterationAutomaticSwitcher.fixedDelay"
+                                 required="true"
+                                 type="LONG"
+                                 updatePolicy="NO_RESTART_REQUIRED">
+                         </configurationProperty>-->
                         <configurationProperty
                                 accessPolicy="OPEN"
                                 default="0230"
@@ -77,26 +87,6 @@
                                 displayableName="Mode (ALL, NONE, SELECT)"
                                 name="CurrentIterationAutomaticSwitcher.mode"
                                 required="true"
-                                type="STRING"
-                                updatePolicy="NO_RESTART_REQUIRED">
-                        </configurationProperty>
-                        <configurationProperty
-                                accessPolicy="OPEN"
-                                default="JazzCM"
-                                description="The ID of the role to be emailed, not Name!"
-                                displayableName="Email Notification Role ID"
-                                name="CurrentIterationAutomaticSwitcher.roleID"
-                                required="true"
-                                type="STRING"
-                                updatePolicy="NO_RESTART_REQUIRED">
-                        </configurationProperty>
-                        <configurationProperty
-                                accessPolicy="OPEN"
-                                default=""
-                                description="Delimiter separated email addresses to be notified if something goes wrong"
-                                displayableName="Email in case of (partial) failure"
-                                name="CurrentIterationAutomaticSwitcher.mail"
-                                required="false"
                                 type="STRING"
                                 updatePolicy="NO_RESTART_REQUIRED">
                         </configurationProperty>
