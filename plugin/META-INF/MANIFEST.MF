@@ -32,8 +32,7 @@ Require-Bundle:
  com.ibm.team.jfs.app.error,
  com.ibm.team.process.common,
  com.ibm.team.process.service
-Bundle-ClassPath: target/dependency/gson-2.8.5.jar,
- target/dependency/com.siemens.bt.jazz.services.base-3.0.3-SNAPSHOT.jar,
+Bundle-ClassPath: target/dependency/com.siemens.bt.jazz.services.base-3.0.3-SNAPSHOT.jar,
  .
 Import-Package: com.ibm.team.jfs.app,
  com.ibm.team.jfs.app.http.util,
