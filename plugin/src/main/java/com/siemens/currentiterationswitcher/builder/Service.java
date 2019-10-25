@@ -80,15 +80,5 @@ public class Service extends AbstractRestService {
         } else {
             map.put(id + "palist", "");
         }
-        if (restRequest.hasParameter("roleID")) {
-            map.put(id + "roleID", restRequest.getParameterValue("roleID"));
-        } else {
-            map.put(id + "roleID", "JazzCM");
-        }
-        if (restRequest.hasParameter("mail")) {
-            map.put(id + "mail", restRequest.getParameterValue("mail"));
-        } else {
-            map.put(id + "mail", "");
-        }
     }
 }
