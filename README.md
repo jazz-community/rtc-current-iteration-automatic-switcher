@@ -45,8 +45,9 @@ If parameters are not provided following defaults will be used:
 * mail: ""
 
 
-###If it doesn't work
-make sure mode isn't NONE.
+### If it doesn't work
+Make sure mode isn't NONE.
+
 If a current iteration is set on the wrong level, please remove it. CIAS tests if set current iteration is sensible (e.g. with current date between start and end date) before going through all.
 
 ## Contributing
